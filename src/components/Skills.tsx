@@ -7,14 +7,18 @@ interface FallingSkill extends Skill {
   x: number;
   y: number; // Y-Position (top-left corner)
   rotation: number;
+  angularVelocity: number; // Rotationsgeschwindigkeit
   isDragging: boolean;
   velocity: { x: number; y: number };
 }
 
-const CARD_WIDTH = 120;
-const CARD_HEIGHT = 60;
-const GRAVITY = 1.2; // Einfache Gravitation
-const FRICTION = 0.95;
+const CARD_WIDTH = 100;
+const CARD_HEIGHT = 40;
+const GRAVITY = 0.001; // Schwächere Gravitation (wie auf dem Mond)
+const FRICTION = 7; // Reibung
+const AIR_RESISTANCE = 1; // Leichter Luftwiderstand
+const MAX_VELOCITY = 1.1; // Maximale Geschwindigkeit (langsam)
+const ANGULAR_FRICTION = 0.95; // Reibung für Rotation
 
 export const Skills = () => {
   const [fallingSkills, setFallingSkills] = useState<FallingSkill[]>([]);
@@ -25,7 +29,7 @@ export const Skills = () => {
     threshold: 0.2,
   });
 
-  // Initialisiere Elemente
+  // Initialisiere alle Elemente gleichzeitig
   useEffect(() => {
     if (hasIntersected && !isActive && containerRef.current) {
       setIsActive(true);
@@ -34,15 +38,18 @@ export const Skills = () => {
         if (containerRef.current) {
           const containerWidth = containerRef.current.offsetWidth || 1200;
           
+          // Verwende alle Elemente
+          // Alle Elemente gleichzeitig initialisieren
           const newFallingSkills: FallingSkill[] = skills.map((skill, index) => ({
             ...skill,
             x: Math.random() * (containerWidth - CARD_WIDTH),
-            y: -CARD_HEIGHT - index * 30, // Startet oben außerhalb
-            rotation: 0, // Keine Rotation für jetzt
+            y: -CARD_HEIGHT - index * 40, // Startet oben außerhalb
+            rotation: (Math.random() - 0.5) * Math.PI * 2,
+            angularVelocity: (Math.random() - 0.5) * 0.1, // Initiale Rotationsgeschwindigkeit
             isDragging: false,
             velocity: {
-              x: 0,
-              y: 2 + Math.random() * 2, // Einfache Fallgeschwindigkeit
+              x: (Math.random() - 0.5) * 1.5, // Langsamere initiale horizontale Bewegung
+              y: 1 + Math.random() * 1, // Initiale Fallgeschwindigkeit (mit Gravitation)
             },
           }));
           
@@ -52,62 +59,130 @@ export const Skills = () => {
     }
   }, [hasIntersected, isActive]);
 
-  // Physik-Loop - EINFACH: Nur Fallen, keine Kollisionen
+  // Kollisionserkennung zwischen Elementen entfernt - Elemente können sich berühren
+
+  // Physik-Loop mit Gummiball-Animation und Element-zu-Element Kollisionen
   useEffect(() => {
     if (!isActive || !containerRef.current || fallingSkills.length === 0) return;
 
     const containerHeight = containerRef.current.offsetHeight || 600;
     const containerWidth = containerRef.current.offsetWidth || 1200;
     const floorY = containerHeight - CARD_HEIGHT;
+    const ceilingY = 0;
 
     const interval = setInterval(() => {
       setFallingSkills((prev) => {
-        return prev.map((skill) => {
+        // Erstelle eine Kopie für Kollisionserkennung
+        const updatedSkills = prev.map((skill) => {
           // Überspringe wenn gedraggt wird
           if (isDraggingRef.current.has(skill.id)) {
             return skill;
           }
 
-          // Einfache Physik: Nur Gravitation
-          let newVelY = skill.velocity.y + GRAVITY;
+          // Physik: Schwächere Gravitation (wie auf dem Mond)
+          let newVelY = skill.velocity.y + GRAVITY; // Gravitation hinzufügen
+          newVelY *= AIR_RESISTANCE;
+          
+          // Begrenze Geschwindigkeit
+          if (Math.abs(newVelY) > MAX_VELOCITY) {
+            newVelY = newVelY > 0 ? MAX_VELOCITY : -MAX_VELOCITY;
+          }
+          
           let newY = skill.y + newVelY;
 
-          // Boden-Kollision (einfach)
-          if (newY >= floorY) {
-            newY = floorY;
-            newVelY = 0; // Stoppt am Boden
+          // Horizontale Bewegung
+          let newVelX = skill.velocity.x * FRICTION * AIR_RESISTANCE;
+          
+          // Begrenze Geschwindigkeit
+          if (Math.abs(newVelX) > MAX_VELOCITY) {
+            newVelX = newVelX > 0 ? MAX_VELOCITY : -MAX_VELOCITY;
           }
+          
+          let newX = skill.x + newVelX;
 
-          // Seiten-Kollisionen (einfach)
-          let newX = skill.x;
-          let newVelX = skill.velocity.x * FRICTION;
+          // Rotation durch Wand-Kollision - wird bei jedem Wandkontakt gesetzt und läuft kontinuierlich
+          let newAngularVelocity = skill.angularVelocity;
+          let wallHit = false;
 
+          // Seiten-Kollisionen - Elemente fliegen in andere Richtung
           if (newX < 0) {
             newX = 0;
-            newVelX = 0;
+            // Zufällige neue Richtung
+            newVelX = (Math.random() - 0.5) * MAX_VELOCITY * 2;
+            newVelY = (Math.random() - 0.5) * MAX_VELOCITY * 2;
+            // Langsamere kontinuierliche Rotation nach rechts oder links
+            newAngularVelocity = (Math.random() > 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03);
+            wallHit = true;
           } else if (newX > containerWidth - CARD_WIDTH) {
             newX = containerWidth - CARD_WIDTH;
-            newVelX = 0;
+            // Zufällige neue Richtung
+            newVelX = (Math.random() - 0.5) * MAX_VELOCITY * 2;
+            newVelY = (Math.random() - 0.5) * MAX_VELOCITY * 2;
+            // Langsamere kontinuierliche Rotation nach rechts oder links
+            newAngularVelocity = (Math.random() > 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03);
+            wallHit = true;
           }
+
+          // Boden-Kollision - Elemente fliegen in andere Richtung
+          if (newY >= floorY) {
+            newY = floorY;
+            // Zufällige neue Richtung (mehr nach oben)
+            newVelX = (Math.random() - 0.5) * MAX_VELOCITY * 2;
+            newVelY = -Math.abs((Math.random() - 0.5) * MAX_VELOCITY * 2); // Nach oben
+            // Langsamere kontinuierliche Rotation nach rechts oder links
+            newAngularVelocity = (Math.random() > 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03);
+            wallHit = true;
+          }
+
+          // Decken-Kollision - Elemente fliegen in andere Richtung
+          if (newY <= ceilingY) {
+            newY = ceilingY;
+            // Zufällige neue Richtung (mehr nach unten)
+            newVelX = (Math.random() - 0.5) * MAX_VELOCITY * 2;
+            newVelY = Math.abs((Math.random() - 0.5) * MAX_VELOCITY * 2); // Nach unten
+            // Langsamere kontinuierliche Rotation nach rechts oder links
+            newAngularVelocity = (Math.random() > 0.5 ? 1 : -1) * (0.02 + Math.random() * 0.03);
+            wallHit = true;
+          }
+
+          // Kontinuierliche Rotation: Wenn keine Wand-Kollision, behalte aktuelle Rotation (verlangsamt durch Reibung)
+          if (!wallHit) {
+            // Rotation verlangsamt sich langsam durch Reibung, bleibt aber kontinuierlich
+            newAngularVelocity = skill.angularVelocity * (ANGULAR_FRICTION + 0.01); // Sehr langsame Verlangsamung
+          }
+          
+          // Wende kontinuierliche Rotation an
+          let newRotation = skill.rotation + newAngularVelocity;
 
           return {
             ...skill,
             x: newX,
             y: newY,
-            rotation: 0, // Keine Rotation
+            rotation: newRotation,
+            angularVelocity: newAngularVelocity,
             velocity: {
               x: newVelX,
               y: newVelY,
             },
           };
         });
+
+        // Keine Kollisionserkennung zwischen Elementen - Elemente können sich berühren
+        return updatedSkills.map((skill) => {
+          // Rotation wird weiterhin durch Reibung verlangsamt
+          return {
+            ...skill,
+            rotation: skill.rotation + skill.angularVelocity,
+            angularVelocity: skill.angularVelocity * ANGULAR_FRICTION,
+          };
+        });
       });
-    }, 16); // ~60fps
+    }, 16);
 
     return () => clearInterval(interval);
   }, [isActive, fallingSkills.length]);
 
-  // Drag & Drop - vereinfacht
+  // Drag & Drop
   const handleMouseDown = (skillId: string, e: React.MouseEvent) => {
     e.preventDefault();
     isDraggingRef.current.add(skillId);
@@ -122,43 +197,59 @@ export const Skills = () => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
       
-      fallingSkills.forEach((skill) => {
-        if (isDraggingRef.current.has(skill.id)) {
-          const rect = containerRef.current!.getBoundingClientRect();
-          const containerX = e.clientX - rect.left;
-          const containerY = e.clientY - rect.top;
+      // Finde das Element, das gerade gedraggt wird (sollte nur eines sein)
+      const draggedSkillId = Array.from(isDraggingRef.current)[0];
+      if (!draggedSkillId) return;
 
-          setFallingSkills((prev) =>
-            prev.map((s) =>
-              s.id === skill.id
-                ? {
-                    ...s,
-                    x: Math.max(0, Math.min(containerX - CARD_WIDTH / 2, rect.width - CARD_WIDTH)),
-                    y: Math.max(0, Math.min(containerY - CARD_HEIGHT / 2, rect.height - CARD_HEIGHT)),
-                  }
-                : s
-            )
-          );
-        }
-      });
+      const rect = containerRef.current.getBoundingClientRect();
+      const containerX = e.clientX - rect.left;
+      const containerY = e.clientY - rect.top;
+
+      // Berechne die Position relativ zur Maus (Maus ist in der Mitte des Elements)
+      const newX = Math.max(0, Math.min(containerX - CARD_WIDTH / 2, rect.width - CARD_WIDTH));
+      const newY = Math.max(0, Math.min(containerY - CARD_HEIGHT / 2, rect.height - CARD_HEIGHT));
+
+      // Aktualisiere NUR das gedraggte Element - behalte alle anderen Eigenschaften
+      setFallingSkills((prev) =>
+        prev.map((s) =>
+          s.id === draggedSkillId
+            ? {
+                ...s,
+                x: newX,
+                y: newY,
+                // WICHTIG: Behalte alle anderen Eigenschaften (rotation, velocity, etc.)
+              }
+            : s // Alle anderen Elemente bleiben unverändert
+        )
+      );
     };
 
     const handleGlobalMouseUp = () => {
-      fallingSkills.forEach((skill) => {
-        if (isDraggingRef.current.has(skill.id)) {
-          isDraggingRef.current.delete(skill.id);
-          setFallingSkills((prev) =>
-            prev.map((s) =>
-              s.id === skill.id
-                ? { ...s, isDragging: false, velocity: { x: 0, y: 0 } }
-                : s
-            )
-          );
-        }
-      });
+      // Finde alle gedraggten Elemente und stoppe sie
+      const draggedIds = Array.from(isDraggingRef.current);
+      
+      if (draggedIds.length > 0) {
+        draggedIds.forEach((skillId) => {
+          isDraggingRef.current.delete(skillId);
+        });
+
+        // Setze isDragging auf false und reset velocity, aber behalte Position
+        setFallingSkills((prev) =>
+          prev.map((s) =>
+            draggedIds.includes(s.id)
+              ? { 
+                  ...s, 
+                  isDragging: false, 
+                  velocity: { x: 0, y: 0 },
+                  // WICHTIG: Behalte x, y, rotation - Element bleibt sichtbar!
+                }
+              : s
+          )
+        );
+      }
     };
 
-    if (fallingSkills.some((s) => s.isDragging)) {
+    if (isDraggingRef.current.size > 0) {
       window.addEventListener('mousemove', handleGlobalMouseMove);
       window.addEventListener('mouseup', handleGlobalMouseUp);
       return () => {
@@ -299,15 +390,23 @@ interface SkillCardProps {
 }
 
 const SkillCard = ({ skill, categoryColor, onMouseDown }: SkillCardProps) => {
+  // Stelle sicher, dass die Position immer gültig ist
+  const x = Math.max(0, skill.x);
+  const y = Math.max(0, skill.y);
+
   return (
     <div
       className={`absolute ${categoryColor} border-2 rounded-lg px-4 py-2 backdrop-blur-md cursor-grab active:cursor-grabbing shadow-lg select-none`}
       style={{
-        left: `${skill.x}px`,
-        top: `${skill.y}px`,
+        left: `${x}px`,
+        top: `${y}px`,
         width: `${CARD_WIDTH}px`,
         height: `${CARD_HEIGHT}px`,
+        transform: `rotate(${skill.rotation}rad)`,
+        transformOrigin: 'center center',
         zIndex: skill.isDragging ? 1000 : Math.floor(skill.y),
+        opacity: 1, // Stelle sicher, dass Element immer sichtbar ist
+        visibility: 'visible', // Stelle sicher, dass Element immer sichtbar ist
       }}
       onMouseDown={onMouseDown}
     >
@@ -317,3 +416,4 @@ const SkillCard = ({ skill, categoryColor, onMouseDown }: SkillCardProps) => {
     </div>
   );
 };
+1

@@ -26,3 +26,4 @@ export const useScrollAnimation = () => {
   return { scrollY, scrollProgress };
 };
 
+

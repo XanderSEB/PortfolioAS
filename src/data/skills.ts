@@ -25,5 +25,16 @@ export const skills: Skill[] = [
   { id: '16', name: 'VS Code', category: 'software', color: '#007ACC' },
   { id: '17', name: 'AWS', category: 'technology', color: '#232F3E' },
   { id: '18', name: 'Linux', category: 'technology', color: '#FCC624' },
+  { id: '19', name: 'Unity', category: 'software', color: '#000000' },
+  { id: '20', name: 'CarMaker', category: 'software', color: '#0066CC' },
+  { id: '21', name: 'Grafana', category: 'tool', color: '#F46800' },
+  { id: '22', name: 'Blender', category: 'software', color: '#F5792A' },
+  { id: '23', name: 'Railway', category: 'technology', color: '#0B0D0E' },
+  { id: '24', name: 'Supabase', category: 'technology', color: '#3ECF8E' },
+  { id: '25', name: 'Django', category: 'framework', color: '#092E20' },
+  { id: '26', name: 'Spring', category: 'framework', color: '#6DB33F' },
+  { id: '27', name: 'Vite', category: 'tool', color: '#646CFF' },
+  { id: '28', name: 'C#', category: 'language', color: '#239120' },
 ];
+
 

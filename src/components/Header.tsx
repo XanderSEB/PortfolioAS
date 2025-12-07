@@ -17,6 +17,7 @@ export const Header = () => {
     { label: 'Skills', href: '#skills' },
     { label: 'Bildung', href: '#education' },
     { label: 'ASAIS Group', href: '#asais' },
+    { label: 'Techstack', href: '#techstack' },
     { label: 'Kontakt', href: '#contact' },
   ];
 

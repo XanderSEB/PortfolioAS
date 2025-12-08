@@ -69,7 +69,7 @@ export const Hero = () => {
             variants={itemVariants}
           >
             Willkommen auf meiner Portfolio-Webseite. Hier finden Sie meine
-            Projekte, meine Bildung und Informationen über die ASAIS Group.
+            Projekte, meine Bildung und meinen Techstack.
           </motion.p>
 
           <motion.div
